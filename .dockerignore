@@ -1,0 +1,8 @@
+node_modules/
+*.config.js
+*.eslintrc.js
+*.lintstagedrc.json
+*.prettierrc.json
+coverage/
+.env
+.env.*

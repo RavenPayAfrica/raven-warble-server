@@ -1,0 +1,21 @@
+# Ignore npm dependencies
+/node_modules
+
+# Ignore compiled JavaScript files
+/build
+/dist
+
+# Ignore logs
+/logs
+
+# Ignore coverage reports
+/coverage/
+
+# Ignore IDE files (if you're using an IDE)
+/.idea/
+/.metalead
+/*.iml
+.env
+.env.*
+!.env.example
+
