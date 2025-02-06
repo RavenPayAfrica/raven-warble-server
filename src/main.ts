@@ -26,7 +26,7 @@ app.register(appRoutes);
 
 app.get('/', (req,res)=>{
     res.send({
-        message: "Welcome to Raven Warble"
+        message: "Welcome to Raven Streams"
     })
 })
 
@@ -52,7 +52,7 @@ app.ready((err)=>{
         next() 
     })
     app.io.on('connection', (socket) =>{
-        app.log.info('Socket connected!' +socket.id);
+        app.log.info('Socket connected! ' +socket.id);
         if(socket.acc?.length){
             const roomID = `account:${socket?.acc}`;
             socket.join(roomID)

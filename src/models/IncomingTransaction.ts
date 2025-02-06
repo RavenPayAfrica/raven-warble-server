@@ -26,8 +26,6 @@ class IncomingTransaction extends BaseModel {
         return {
             type: 'object',
             required: [
-                "sessionId",
-                "paymentRef",
                 "status",
                 "creditAccount",
                 "creditAccountName",

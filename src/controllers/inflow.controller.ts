@@ -3,7 +3,7 @@ import WarbleAccount from "../models/WarbleAccount";
 import { IncomingCreditNotificaion } from "../@types/app";
 import IncomingTransaction from "../models/IncomingTransaction";
 import { auth } from "../middleware/auth";
-import { randomBytes } from "crypto";
+import { randomBytes, randomInt } from "crypto";
 import db from "../config/db";
 import { format, parse } from "date-fns";
 
@@ -27,11 +27,11 @@ const acceptNotification: RouteShorthandOptionsWithHandler = {
                 sessionId: { type: 'string', },
                 paymentRef: { type: 'string' },
                 status: { type: 'string' },
-                creditAccount: { type: 'string', pattern: "^[0-9]{10}$"  },
+                creditAccount: { type: 'string', pattern: "^[0-9]{10}$" },
                 creditAccountName: { type: 'string' },
                 senderName: { type: 'string' },
                 senderBank: { type: 'string' },
-                senderAccNo: { type: 'string', pattern: "^[0-9]{10}$"},
+                senderAccNo: { type: 'string', pattern: "^[0-9]{10}$" },
                 narration: { type: 'string' },
                 amount: {
                     type: 'string',
@@ -40,32 +40,32 @@ const acceptNotification: RouteShorthandOptionsWithHandler = {
             },
         }
     },
-    handler: async function(request, reply) {
+    handler: async function (request, reply) {
         const data = request.body as IncomingCreditNotificaion;
         const account = await (WarbleAccount.query().where('account_number', data.creditAccount)).first()
         if (!account) return reply.status(400).send({ message: "Warbles not enabled for account", code: 404, })
-        if(account.history_enabled) {
-            console.log("I ran to enable history")
-            IncomingTransaction.query().where('sessionId', data.sessionId).first().then(async (transaction) =>{
+        if (account.history_enabled) {
+            IncomingTransaction.query().where('sessionId', data.sessionId).first().then(async (transaction) => {
                 const query = IncomingTransaction.query();
+
                 try {
-                    await transaction? query.where({sessionId: data.sessionId}).update({
-                        status: data.status
-                }): query.insert(data)
+                    await (transaction ? transaction.$set({
+                        status: data.status,
+                    }).$query().patch() : query.insert(data))
                 } catch (error) {
                     reply.log.error(error, "Failed to save incoming transaction")
                 }
-            }).catch((e)=>{
-                reply.log.error(e,e.message)
+            }).catch((e) => {
+                reply.log.error(e, e.message)
             })
         }
 
-        const parsedDate = parse( data.sessionId.substring(6,18), "yyMMddHHmmss", new Date) ??  new Date;
-        
+        const parsedDate = parse(data.sessionId.substring(6, 18), "yyMMddHHmmss", new Date) ?? new Date;
+
         this.io.of('/').to(`account:${data.creditAccount}`).emit("new_transaction", {
             sender: data.senderName,
             senderBank: data.senderBank,
-            senderBankCode: data.sessionId.substring(0,6),
+            senderBankCode: data.sessionId.substring(0, 6),
             sessionId: data.sessionId,
             amount: data.amount,
             narration: data.narration,
@@ -75,7 +75,7 @@ const acceptNotification: RouteShorthandOptionsWithHandler = {
             transactionTime: format(parsedDate, "MMM do y hh:mm:ss b"),
             notificationTime: `${Date.now()}`
         })
-        
+
         reply.resourceResponse({
             data: null,
             message: "Recieved"
@@ -92,16 +92,16 @@ const registerWarbleAccount: RouteShorthandOptionsWithHandler = {
                 "history_enabled",
             ],
             properties: {
-                account_number: { type: 'string', pattern: "^[0-9]{10}$"  },
-                history_enabled: {type: 'boolean'}
+                account_number: { type: 'string', pattern: "^[0-9]{10}$" },
+                history_enabled: { type: 'boolean' }
             }
         }
     },
-    handler: async function(req, reply){
-        const key = randomBytes(10).toString('base64')
+    handler: async function (req, reply) {
+        const key = randomInt(100000, 999999).toString()
         try {
-            const warbleAccount = await WarbleAccount.query().where('account_number',(req.body as {account_number: string}).account_number).first()
-            if(warbleAccount) {
+            const warbleAccount = await WarbleAccount.query().where('account_number', (req.body as { account_number: string }).account_number).first()
+            if (warbleAccount) {
                 return reply.resourceResponse({
                     data: null,
                     statusCode: 400,
@@ -123,12 +123,12 @@ const registerWarbleAccount: RouteShorthandOptionsWithHandler = {
                 message: "Warble account created"
             })
         } catch (error) {
-          req.log.error(error, "Failed to register warble account")
-          reply.resourceResponse({
-            data: null,
-            statusCode: 400,
-            message: "Failed to register warble account"
-          })
+            req.log.error(error, "Failed to register warble account")
+            reply.resourceResponse({
+                data: null,
+                statusCode: 400,
+                message: "Failed to register warble account"
+            })
         }
 
     }
@@ -142,17 +142,17 @@ const createWarbleAccountKey: RouteShorthandOptionsWithHandler = {
                 "account_number"
             ],
             properties: {
-                account_number: { type: 'string', pattern: "^[0-9]{10}$"  }
+                account_number: { type: 'string', pattern: "^[0-9]{10}$" }
             }
         }
     },
-    handler: async function(req, reply){
-        const key = randomBytes(10).toString('base64')
+    handler: async function (req, reply) {
+        const key = randomInt(100000, 999999).toString()
         const transaction = await WarbleAccount.startTransaction()
         try {
-            
-            const warbleAccount = await WarbleAccount.query(transaction).where('account_number',(req.body as {account_number: string}).account_number).first()
-            if(!warbleAccount) {
+
+            const warbleAccount = await WarbleAccount.query(transaction).where('account_number', (req.body as { account_number: string }).account_number).first()
+            if (!warbleAccount) {
                 return reply.resourceResponse({
                     data: null,
                     statusCode: 400,
@@ -163,10 +163,11 @@ const createWarbleAccountKey: RouteShorthandOptionsWithHandler = {
             await warbleAccount.$query(transaction).update({
                 stream_keys: [...warbleAccount.stream_keys, key],
                 account_number: warbleAccount.account_number,
+                history_enabled: Boolean(warbleAccount.history_enabled),
             })
             transaction.commit()
             return reply.resourceResponse({
-                data:{
+                data: {
                     key,
                 },
             })
@@ -193,25 +194,25 @@ const deleteWarbleAccount: RouteShorthandOptionsWithHandler = {
                 "account_number"
             ],
             properties: {
-                account_number: { type: 'string', pattern: "^[0-9]{10}$"  }
+                account_number: { type: 'string', pattern: "^[0-9]{10}$" }
             }
         }
     },
-    handler: async function(req, reply){
+    handler: async function (req, reply) {
         const key = randomBytes(10).toString('base64')
         try {
-            const warbleAccount = await WarbleAccount.query().where('account_number',(req.params as {account_number: string}).account_number).first()
-            if(!warbleAccount) {
+            const warbleAccount = await WarbleAccount.query().where('account_number', (req.params as { account_number: string }).account_number).first()
+            if (!warbleAccount) {
                 return reply.status(404).send({
                     message: "Account not found"
                 })
             }
-           await WarbleAccount.query().where('id',warbleAccount!.id as number).delete()
-           return reply.resourceResponse({
-            statusCode: 400,
-            data: null,
-            message: "Account deleted"
-           })
+            await WarbleAccount.query().where('id', warbleAccount!.id as number).delete()
+            return reply.resourceResponse({
+                statusCode: 400,
+                data: null,
+                message: "Account deleted"
+            })
         } catch (error) {
             req.log.error(error, "Failed to delete")
             reply.resourceResponse({
@@ -225,7 +226,7 @@ const deleteWarbleAccount: RouteShorthandOptionsWithHandler = {
 }
 
 
-export const appRoutes: FastifyPluginCallback =  function (fastify, options, done){
+export const appRoutes: FastifyPluginCallback = function (fastify, options, done) {
     fastify.register(auth)
     fastify.post('/post-transaction', acceptNotification);
     fastify.post('/register-account', registerWarbleAccount);
