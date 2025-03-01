@@ -1,12 +1,12 @@
 import 'dotenv/config'
-import fastify, { FastifyRequest } from "fastify";
+import fastify from "fastify";
+import { fastifySchedule } from '@fastify/schedule';
 import { utilityFunctions } from './utils/helpers';
 import { authRoutes } from './controllers/auth.controller';
 import appConfig from "./config/app"
-import fastifySocketIO from './plugins/socketio';
-import WarbleAccount from './models/WarbleAccount';
+import fastifySocketIO, { registerSocketEventsAndHandlers } from './plugins/socketio';
 import { appRoutes } from './controllers/inflow.controller';
-import { ref } from 'objection';
+import { CleanUpOldTransactionsJob } from './cronTasks';
 
 //@ts-ignore
 BigInt.prototype.toJSON = function() { return this.toString() }
@@ -19,6 +19,7 @@ const app = fastify({
     },
 })
 
+app.register(fastifySchedule)
 app.register(utilityFunctions)
 app.register(fastifySocketIO)
 app.register(authRoutes, {prefix: 'auth'})
@@ -32,32 +33,19 @@ app.get('/', (req,res)=>{
 
 app.get('/healthy', (req,res)=>{
     res.send({
-        message: "healthy"
+        message: "healthy",
+        activeSockets: app.io.sockets.sockets.size
     })
 })
 
 app.ready((err)=>{
     if (err) throw err
-    app.io.use( async (socket, next)=>{
-        const {acc, key} = socket.handshake.auth;
-        if(!acc?.length || !key?.length) {
-            return next( new Error("Authentication Required"));
-        }
-       
-        const warbleAccount = await WarbleAccount.query().where('account_number', acc).first()
-        if(!warbleAccount || !warbleAccount.stream_keys.includes(key)) {
-            return next( new Error("Authentication Failed! Can't listen to stream"));
-        }
-        socket.acc = warbleAccount.account_number;
-        next() 
-    })
-    app.io.on('connection', (socket) =>{
-        app.log.info('Socket connected! ' +socket.id);
-        if(socket.acc?.length){
-            const roomID = `account:${socket?.acc}`;
-            socket.join(roomID)
-        }
-    })
+    app.scheduler.addSimpleIntervalJob(CleanUpOldTransactionsJob)
+    registerSocketEventsAndHandlers(app);
+})
+
+app.addHook('onClose', (intance)=>{
+    intance.scheduler.stop()
 })
 
 
@@ -71,3 +59,7 @@ const start = async () => {
 }
 
 start()
+
+process.on('SIGTERM', ()=>{
+    app.scheduler.stop()
+})

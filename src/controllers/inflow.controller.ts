@@ -6,6 +6,7 @@ import { auth } from "../middleware/auth";
 import { randomBytes, randomInt } from "crypto";
 import db from "../config/db";
 import { format, parse } from "date-fns";
+import { createWarbleTransaction } from "../utils/helpers";
 
 const acceptNotification: RouteShorthandOptionsWithHandler = {
     schema: {
@@ -60,21 +61,8 @@ const acceptNotification: RouteShorthandOptionsWithHandler = {
             })
         }
 
-        const parsedDate = parse(data.sessionId.substring(6, 18), "yyMMddHHmmss", new Date) ?? new Date;
 
-        this.io.of('/').to(`account:${data.creditAccount}`).emit("new_transaction", {
-            sender: data.senderName,
-            senderBank: data.senderBank,
-            senderBankCode: data.sessionId.substring(0, 6),
-            sessionId: data.sessionId,
-            amount: data.amount,
-            narration: data.narration,
-            status: data.status,
-            accountName: data.creditAccountName,
-            accountNumber: data.creditAccount,
-            transactionTime: format(parsedDate, "MMM do y hh:mm:ss b"),
-            notificationTime: `${Date.now()}`
-        })
+        this.io.of('/').to(`account:${data.creditAccount}`).emit("new_transaction", createWarbleTransaction(data))
 
         reply.resourceResponse({
             data: null,
@@ -93,12 +81,24 @@ const registerWarbleAccount: RouteShorthandOptionsWithHandler = {
             ],
             properties: {
                 account_number: { type: 'string', pattern: "^[0-9]{10}$" },
-                history_enabled: { type: 'boolean' }
+                history_enabled: { type: 'boolean' },
+                use_key: { type: 'string', pattern: "^[0-9]{6}$" },
             }
         }
     },
     handler: async function (req, reply) {
-        const key = randomInt(100000, 999999).toString()
+        const body = req.body as { account_number: string, clear_keys?: boolean, expire_at: number, use_key: string }
+        let key = body.use_key ?? randomInt(100000, 999999).toString()
+        const expire_at = new Date(body.expire_at)
+
+        if(`${body.expire_at}`.length && !expire_at.getTime()) {
+            reply.resourceResponse({
+                statusCode: 422,
+                message: "Invalid Expiration date passed",
+                data: null,
+            })
+        }
+        const keyWithExpiration = `${expire_at.getTime()?expire_at.getTime()+':':''}${key}`
         try {
             const warbleAccount = await WarbleAccount.query().where('account_number', (req.body as { account_number: string }).account_number).first()
             if (warbleAccount) {
@@ -111,7 +111,7 @@ const registerWarbleAccount: RouteShorthandOptionsWithHandler = {
             const body = req.body as any;
             const newAccount = await WarbleAccount.query().insert({
                 account_number: body.account_number,
-                stream_keys: [key],
+                stream_keys: [keyWithExpiration],
                 history_enabled: body.history_enabled ?? false,
                 user_id: req.user?.id,
             })
@@ -142,16 +142,30 @@ const createWarbleAccountKey: RouteShorthandOptionsWithHandler = {
                 "account_number"
             ],
             properties: {
-                account_number: { type: 'string', pattern: "^[0-9]{10}$" }
+                account_number: { type: 'string', pattern: "^[0-9]{10}$" },
+                clear_keys: {type: 'boolean'},
+                expire_at: { type: 'number' },
+                use_key: { type: 'string', pattern: "^[0-9]{6}$" },
             }
         }
     },
     handler: async function (req, reply) {
-        const key = randomInt(100000, 999999).toString()
         const transaction = await WarbleAccount.startTransaction()
+        const body = req.body as { account_number: string, clear_keys?: boolean, expire_at: number, use_key: string }
+        let key = body.use_key ?? randomInt(100000, 999999).toString()
+        const expire_at = new Date(body.expire_at)
+
+        if(`${body.expire_at}`.length && !expire_at.getTime()) {
+            reply.resourceResponse({
+                statusCode: 422,
+                message: "Invalid Expiration date passed",
+                data: null,
+            })
+        }
+        const keyWithExpiration = `${expire_at.getTime()?expire_at.getTime()+':':''}${key}`
         try {
 
-            const warbleAccount = await WarbleAccount.query(transaction).where('account_number', (req.body as { account_number: string }).account_number).first()
+            const warbleAccount = await WarbleAccount.query(transaction).where('account_number', body.account_number).first()
             if (!warbleAccount) {
                 return reply.resourceResponse({
                     data: null,
@@ -161,7 +175,7 @@ const createWarbleAccountKey: RouteShorthandOptionsWithHandler = {
             }
 
             await warbleAccount.$query(transaction).update({
-                stream_keys: [...warbleAccount.stream_keys, key],
+                stream_keys: body.clear_keys ? [keyWithExpiration]: [...warbleAccount.stream_keys, keyWithExpiration],
                 account_number: warbleAccount.account_number,
                 history_enabled: Boolean(warbleAccount.history_enabled),
             })
@@ -169,6 +183,59 @@ const createWarbleAccountKey: RouteShorthandOptionsWithHandler = {
             return reply.resourceResponse({
                 data: {
                     key,
+                },
+            })
+
+        } catch (error) {
+            transaction.rollback()
+            req.log.error(error, "Failed to create new key")
+            reply.resourceResponse({
+                data: null,
+                statusCode: 400,
+                message: "Failed to create warble"
+            })
+        }
+
+    }
+}
+
+const toggleHistory: RouteShorthandOptionsWithHandler = {
+    schema: {
+        body: {
+            type: "object",
+            required: [
+                "account_number",
+                "history_enabled"
+            ],
+            properties: {
+                account_number: { type: 'string', pattern: "^[0-9]{10}$" },
+                history_enabled: { type: 'boolean' },
+            }
+        }
+    },
+    handler: async function (req, reply) {
+        const transaction = await WarbleAccount.startTransaction()
+        const body = req.body as { account_number: string, history_enabled: boolean }
+
+        try {
+
+            const warbleAccount = await WarbleAccount.query(transaction).where('account_number', body.account_number).first()
+            if (!warbleAccount) {
+                return reply.resourceResponse({
+                    data: null,
+                    statusCode: 400,
+                    message: "Account not registered. Kindly register account for warble"
+                })
+            }
+
+            await warbleAccount.$query(transaction).update({
+                history_enabled: body.history_enabled,
+            })
+            transaction.commit()
+            return reply.resourceResponse({
+                data: {
+                    history_enabled:  body.history_enabled,
+                    message: `History status ${body.history_enabled? "Enabled":"Disabled"}`
                 },
             })
 
@@ -231,6 +298,7 @@ export const appRoutes: FastifyPluginCallback = function (fastify, options, done
     fastify.post('/post-transaction', acceptNotification);
     fastify.post('/register-account', registerWarbleAccount);
     fastify.post('/create-new-key', createWarbleAccountKey);
+    fastify.post('/toggle-history', toggleHistory);
     fastify.delete('/delete-warble-account/:account_number', deleteWarbleAccount);
     done()
 }

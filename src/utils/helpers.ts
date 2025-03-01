@@ -1,9 +1,9 @@
-import { PaginatedData, POSSIBLE_ENV_VARIABLES } from '../@types/app';
+import { IncomingCreditNotificaion, PaginatedData, POSSIBLE_ENV_VARIABLES } from '../@types/app';
 import fp from "fastify-plugin";
 import { FastifyReply } from 'fastify';
 import pino from "pino";
 import { format } from 'date-fns';
-import config from '../config/app';
+import { parse } from 'date-fns/parse';
 const packageJson = require('../../package.json');
 
 export const logger = pino({
@@ -139,3 +139,25 @@ export const utilityFunctions = fp((fastify, opt, done) => {
   )
   done();
 })
+
+export const createWarbleTransaction = (data: IncomingCreditNotificaion)=>{
+  let parsedDate = parse(data.sessionId.substring(6, 18), "yyMMddHHmmss", new Date);
+  if(!parsedDate?.getTime()) {
+    parsedDate = new Date;
+  }
+
+  return {
+    sender: data.senderName,
+    senderBank: data.senderBank,
+    senderAcc: data.senderAccNo.substring(0,2) + "*****" + data.senderAccNo.substring(data.senderAccNo.length -4),
+    senderBankCode: data.sessionId.substring(0, 6),
+    sessionId: data.sessionId,
+    amount: data.amount,
+    narration: data.narration,
+    status: data.status,
+    accountName: data.creditAccountName,
+    accountNumber: data.creditAccount,
+    transactionTime: format(parsedDate, "MMM do y hh:mm:ss b"),
+    notificationTime: `${parsedDate.getTime()}`
+  }
+}
