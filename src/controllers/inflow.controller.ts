@@ -91,7 +91,7 @@ const registerWarbleAccount: RouteShorthandOptionsWithHandler = {
         let key = body.use_key ?? randomInt(100000, 999999).toString()
         const expire_at = new Date(body.expire_at)
 
-        if(`${body.expire_at}`.length && !expire_at.getTime()) {
+        if(`${body.expire_at ?? ''}`.length && !expire_at.getTime()) {
             reply.resourceResponse({
                 statusCode: 422,
                 message: "Invalid Expiration date passed",
@@ -155,7 +155,7 @@ const createWarbleAccountKey: RouteShorthandOptionsWithHandler = {
         let key = body.use_key ?? randomInt(100000, 999999).toString()
         const expire_at = new Date(body.expire_at)
 
-        if(`${body.expire_at}`.length && !expire_at.getTime()) {
+        if(`${body.expire_at ?? ''}`.length && !expire_at.getTime()) {
             reply.resourceResponse({
                 statusCode: 422,
                 message: "Invalid Expiration date passed",
