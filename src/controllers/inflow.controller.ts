@@ -276,7 +276,7 @@ const deleteWarbleAccount: RouteShorthandOptionsWithHandler = {
             }
             await WarbleAccount.query().where('id', warbleAccount!.id as number).delete()
             return reply.resourceResponse({
-                statusCode: 400,
+                statusCode: 200,
                 data: null,
                 message: "Account deleted"
             })
