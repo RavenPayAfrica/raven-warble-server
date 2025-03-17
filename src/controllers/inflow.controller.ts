@@ -210,7 +210,7 @@ const toggleHistory: RouteShorthandOptionsWithHandler = {
             properties: {
                 account_number: { type: 'string', pattern: "^[0-9]{10}$" },
                 history_enabled: { type: 'boolean' },
-            }
+            },
         }
     },
     handler: async function (req, reply) {
@@ -230,6 +230,7 @@ const toggleHistory: RouteShorthandOptionsWithHandler = {
 
             await warbleAccount.$query(transaction).update({
                 history_enabled: body.history_enabled,
+                account_number: body.account_number
             })
             transaction.commit()
             return reply.resourceResponse({
@@ -241,11 +242,11 @@ const toggleHistory: RouteShorthandOptionsWithHandler = {
 
         } catch (error) {
             transaction.rollback()
-            req.log.error(error, "Failed to create new key")
+            req.log.error(error, "Failed to update warble")
             reply.resourceResponse({
                 data: null,
                 statusCode: 400,
-                message: "Failed to create warble"
+                message: "Failed to Update History status"
             })
         }
 
