@@ -4,6 +4,7 @@
   "description": "",
   "scripts": {
     "start": "ts-node src/main.ts",
+    "repl": "ts-node src/repl.ts",
     "dev": "nodemon src/main.ts",
     "build": "tsc",
     "cli": "node -r ts-node/register src/cli.ts",

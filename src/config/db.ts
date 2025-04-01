@@ -4,6 +4,7 @@ import { Env } from '../utils/helpers';
 
 export const config: KnexType.Config = {
     client: "mysql2",
+    debug: Env.boolean("LOG_DB_QUERY", false),
     connection: {
         database: Env.string("DATABASE_NAME", "myapp_development"),
         user: Env.string("DATABASE_USER" , "root"),

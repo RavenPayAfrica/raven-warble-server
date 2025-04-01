@@ -8,6 +8,7 @@ type IAppConfig = {
     logLevel: string;
     cba_url: string;
     environment: string;
+    maxInflowLifeTime: number;
 }
 
 export const config: IAppConfig = {
@@ -18,6 +19,7 @@ export const config: IAppConfig = {
     logLevel: Env.string("APP_LOG_LEVEL", Env.string("APP_ENVIRONMENT","local") === "local"? "debug": "info"),
     cba_url: Env.string("CBA_URL", ""),
     environment: Env.string("APP_ENVIRONMENT","local"),
+    maxInflowLifeTime: Env.number("MAX_INFLOW_LIFE_TIME", 30),
 }
 
 export default config;
