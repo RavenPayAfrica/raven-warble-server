@@ -7,7 +7,7 @@ const CleanUpOldTransactionsTask = new AsyncTask(
     'clean up old transactions',
     async (id)=>{
         let date = subDays(new Date, config.maxInflowLifeTime,);
-        await IncomingTransaction.query().where('created_at', '>', date).delete()
+        await IncomingTransaction.query().where('created_at', '<=', date).delete()
     },
     err=>{
         console.log(err)
