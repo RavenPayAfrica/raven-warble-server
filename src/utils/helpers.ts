@@ -158,6 +158,7 @@ export const createWarbleTransaction = (data: IncomingCreditNotificaion)=>{
     accountName: data.creditAccountName,
     accountNumber: data.creditAccount,
     transactionTime: format(parsedDate, "MMM do y hh:mm:ss b"),
-    notificationTime: `${parsedDate.getTime()}`
+    notificationTime: `${parsedDate.getTime()}`,
+    transactionTimeISO: parsedDate.toISOString()
   }
 }
