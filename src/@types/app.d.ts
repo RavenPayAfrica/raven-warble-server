@@ -27,6 +27,7 @@ type IncomingCreditNotificaion = {
     senderAccNo: string,
     narration: string,
     amount: number,
+    createdAt: string| Date
 }
 
 

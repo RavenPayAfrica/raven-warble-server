@@ -141,7 +141,7 @@ export const utilityFunctions = fp((fastify, opt, done) => {
 })
 
 export const createWarbleTransaction = (data: IncomingCreditNotificaion)=>{
-  let parsedDate = parse(data.sessionId.substring(6, 18), "yyMMddHHmmss", new Date);
+  let parsedDate = new Date(data.createdAt);
   if(!parsedDate?.getTime()) {
     parsedDate = new Date;
   }

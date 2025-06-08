@@ -62,7 +62,10 @@ const acceptNotification: RouteShorthandOptionsWithHandler = {
         }
 
 
-        this.io.of('/').to(`account:${data.creditAccount}`).emit("new_transaction", createWarbleTransaction(data))
+        this.io.of('/').to(`account:${data.creditAccount}`).emit("new_transaction", createWarbleTransaction({
+            ...data,
+            createdAt: new Date
+        }))
 
         reply.resourceResponse({
             data: null,

@@ -7,6 +7,7 @@ import { Server, ServerOptions } from 'socket.io'
 import IncomingTransaction from '../models/IncomingTransaction'
 import WarbleAccount from '../models/WarbleAccount'
 import { createWarbleTransaction } from '../utils/helpers'
+import { parse } from 'date-fns/parse'
 
 export type FastifySocketioOptions = Partial<ServerOptions> & {
   preClose?: (done: Function) => void
@@ -93,7 +94,10 @@ export const registerSocketEventsAndHandlers = (app: FastifyInstance)=> {
       if(acc === undefined || !acc?.history_enabled) return;
       const history = await IncomingTransaction.query().limit(30).where('creditAccount', acc.account_number).orderBy('id', 'DESC');
       try {
-        socket.emit("stream-history", history.map(createWarbleTransaction))
+        socket.emit("stream-history", history.map((item)=>createWarbleTransaction({
+          ...item,
+          createdAt: item.created_at || parse(item.sessionId.substring(6, 18), "yyMMddHHmmss", new Date)
+        })))
       } catch (error) {
         console.error(error)
       }
